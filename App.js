@@ -1,78 +1,82 @@
 import React, {Component} from 'react';
 import {
-  StyleSheet,
+  AppRegistry,
   Text,
-  Platform,
-  PermissionsAndroid,
   View,
-  Alert,
+  BackHandler,
+  DeviceEventEmitter,
 } from 'react-native';
-// import {Permission, PERMISSION_TYPE} from './AppPermission';
+
+import LocationServicesDialogBox from 'react-native-android-location-services-dialog-box';
 
 import Geolocation from '@react-native-community/geolocation';
+
 class App extends Component {
-  geoSuccess = (position) => {
-    console.log(position);
-  };
-  geoErr = (err) => {
-    // if (err.PERMISSION_DENIED === 1) {
-    //   return alert('App need to access your location please grant permission');
-    // }
-    console.log('Error finding location trying again: ', err);
+  state = {
+    initialPosition: 'unknown',
   };
 
-  Getlocation = () => {
+  componentDidMount() {
     let geoConfig = {
       enableHighAccuracy: true,
       timeout: 50000,
       maximumAge: 50000,
     };
 
-    Geolocation.getCurrentPosition(this.geoSuccess, this.geoErr, geoConfig);
-  };
-  async componentDidMount() {
-    // // Permission.checkPermission(PERMISSION_TYPE.microphone);
-    // const val = await Permission.checkPermission(PERMISSION_TYPE.location);
-    // console.log('val', val);
-    // if (val) {
-    //   this.Getlocation();
-    // }
-    // const val = await Permission.locationPermission();
-    // console.log('val', val);
+    LocationServicesDialogBox.checkLocationServicesIsEnabled({
+      message:
+        "<h2>Use Location ?</h2>This app wants to change your device settings:<br/><br/>Use GPS, Wi-Fi, and cell network for location<br/><br/><a href='#'>Learn more</a>",
+      ok: 'YES',
+      cancel: 'NO',
+      enableHighAccuracy: true, // true => GPS AND NETWORK PROVIDER, false => GPS OR NETWORK PROVIDER
+      showDialog: true, // false => Opens the Location access page directly
+      openLocationServices: true, // false => Directly catch method is called if location services are turned off
+      preventOutSideTouch: false, //true => To prevent the location services popup from closing when it is clicked outside
+      preventBackClick: false, //true => To prevent the location services popup from closing when it is clicked back button
+      providerListener: true, // true ==> Trigger "locationProviderStatusChange" listener when the location state changes
+    })
+      .then(
+        function (success) {
+          // success => {alreadyEnabled: true, enabled: true, status: "enabled"}
+          Geolocation.getCurrentPosition(
+            (position) => {
+              let initialPosition = JSON.stringify(position);
+              this.setState({initialPosition});
+            },
+            (error) => console.log(error),
+            {enableHighAccuracy: false, timeout: 20000, maximumAge: 1000},
+          );
+        }.bind(this),
+      )
+      .catch((error) => {
+        console.log(error.message);
+      });
 
-    if (Platform.OS === 'android') {
-      // Calling the permission function
-      const granted = await PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-        PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
-        PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION,
-        {
-          title: 'Example App Camera Permission',
-          message: 'Example App needs access to your camera',
-        },
-      );
-      if (granted === PermissionsAndroid.RESULTS.GRANTED) {
-        // Permission Granted
-        alert('YOU CAN ACCESS LOCATION');
-        this.Getlocation();
-      } else {
-        // Permission Denied
-        alert('LOCATION Permission Denied');
-      }
-    } else {
-      alert('You ARE NOT ANDROID USER');
-    }
+    BackHandler.addEventListener('hardwareBackPress', () => {
+      //(optional) you can use it if you need it
+      LocationServicesDialogBox.forceCloseDialog();
+    });
+
+    DeviceEventEmitter.addListener('locationProviderStatusChange', function (
+      status,
+    ) {
+      // only trigger when "providerListener" is enabled
+      console.log(status); //  status => {enabled: false, status: "disabled"} or {enabled: true, status: "enabled"}
+    });
+  }
+
+  componentWillUnmount() {
+    // used only when "providerListener" is enabled
+    LocationServicesDialogBox.stopListener(); // Stop the "locationProviderStatusChange" listener.
   }
 
   render() {
     return (
       <View>
-        <Text>React Native Permission</Text>
+        <Text>Geolocation: {this.state.initialPosition}</Text>
       </View>
     );
   }
 }
 
 export default App;
-
-const styles = StyleSheet.create({});
